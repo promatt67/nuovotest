@@ -4,11 +4,11 @@ const EMAIL_AUTORIZZATE = [
     "procopio.matteo1@gmail.com",
     "nikywizzy@gmail.com"
 ];
-
+ 
 const auth = firebase.auth();
 const db   = firebase.database();
 const prodottiRef = db.ref("prodotti");
-
+ 
 const CATEGORIE_ORDER = [
     "Frutta e Verdura","Carne e Pesce","Latticini","Pane e Dolci",
     "Bevande","Pulizia Casa","Igiene Personale","Altro"
@@ -18,21 +18,21 @@ const CAT_EMOJI = {
     "Pane e Dolci":"🍞","Bevande":"🥤","Pulizia Casa":"🧹",
     "Igiene Personale":"🧴","Altro":"📦"
 };
-
+ 
 function loginGoogle() {
     auth.signInWithPopup(new firebase.auth.GoogleAuthProvider())
         .catch(() => {
             document.getElementById("login-error").textContent = "Errore di accesso. Riprova.";
         });
 }
-
+ 
 function logout() { auth.signOut(); }
-
+ 
 auth.onAuthStateChanged(user => {
     const loginScreen = document.getElementById("login-screen");
     const appScreen   = document.getElementById("app-screen");
     const loginError  = document.getElementById("login-error");
-
+ 
     if (user) {
         if (!EMAIL_AUTORIZZATE.includes(user.email)) {
             loginError.textContent = "⛔ Account non autorizzato.";
@@ -50,12 +50,19 @@ auth.onAuthStateChanged(user => {
         appScreen.style.display   = "none";
     }
 });
-
+ 
 function avviaListener() {
     prodottiRef.on("value",
         snapshot => {
             const prodotti = [];
-            snapshot.forEach(child => prodotti.push({ id: child.key, ...child.val() }));
+            snapshot.forEach(child => {
+                const val = child.val();
+                // Assicura che la categoria sia sempre valida
+                if (!val.categoria || !CATEGORIE_ORDER.includes(val.categoria)) {
+                    val.categoria = "Altro";
+                }
+                prodotti.push({ id: child.key, ...val });
+            });
             prodotti.sort((a, b) => {
                 if (a.acquistato !== b.acquistato) return a.acquistato ? 1 : -1;
                 return (a.timestamp || 0) - (b.timestamp || 0);
@@ -66,17 +73,17 @@ function avviaListener() {
         err => setStatus("⚠️ Errore: " + err.message, true)
     );
 }
-
+ 
 function setStatus(msg, isError = false) {
     const el = document.getElementById("status");
     el.style.color = isError ? "#e63946" : "#f4a261";
     el.innerHTML = msg;
 }
-
+ 
 function escHtml(str) {
     return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
-
+ 
 function renderTabella(prodotti) {
     const tbody   = document.getElementById("tabella-prodotti");
     const counter = document.getElementById("counter");
@@ -87,13 +94,12 @@ function renderTabella(prodotti) {
     }
     const acquistati = prodotti.filter(p => p.acquistato).length;
     counter.innerHTML = `<span>${acquistati}</span> / ${prodotti.length} acquistati`;
+ 
+    // Raggruppa per categoria
     const gruppi = {};
     CATEGORIE_ORDER.forEach(c => gruppi[c] = []);
-    prodotti.forEach(p => {
-        const cat = p.categoria || "Altro";
-        if (!gruppi[cat]) gruppi[cat] = [];
-        gruppi[cat].push(p);
-    });
+    prodotti.forEach(p => gruppi[p.categoria].push(p));
+ 
     let html = "";
     CATEGORIE_ORDER.forEach(cat => {
         const items = gruppi[cat];
@@ -112,7 +118,7 @@ function renderTabella(prodotti) {
     });
     tbody.innerHTML = html;
 }
-
+ 
 async function aggiungiProdotto() {
     const nome       = document.getElementById("nome").value.trim();
     const quantita   = parseInt(document.getElementById("quantita").value);
@@ -136,12 +142,12 @@ async function aggiungiProdotto() {
         btn.disabled = false; btn.textContent = "Aggiungi Prodotto";
     }
 }
-
+ 
 async function toggleAcquistato(id, stato) {
     try { await db.ref("prodotti/" + id).update({ acquistato: !stato }); }
     catch (err) { setStatus("❌ Errore.", true); }
 }
-
+ 
 async function eliminaProdotto(id) {
     if (!confirm("Eliminare?")) return;
     try {
@@ -150,14 +156,14 @@ async function eliminaProdotto(id) {
         setTimeout(() => setStatus(""), 2000);
     } catch (err) { setStatus("❌ Errore.", true); }
 }
-
+ 
 document.addEventListener("keydown", e => { if (e.key === "Enter") aggiungiProdotto(); });
-
+ 
 if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("service-worker.js")
         .catch(err => console.warn("SW:", err));
 }
-
+ 
 let deferredPrompt = null;
 const banner = document.getElementById("install-banner");
 window.addEventListener("beforeinstallprompt", e => {
