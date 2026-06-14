@@ -116,33 +116,61 @@ function renderTabella(prodotti) {
     tbody.innerHTML = html;
 }
 
-async function aggiungiProdotto() {
+// 1. OTTIMIZZATA PER AGGIUNGERE PRODOTTI ANCHE OFFLINE
+function aggiungiProdotto() {
     const nome       = document.getElementById("nome").value.trim();
     const quantita   = parseInt(document.getElementById("quantita").value);
     const ubicazione = document.getElementById("ubicazione").value.trim();
     const categoria  = document.getElementById("categoria").value;
+
     if (!nome || !ubicazione || isNaN(quantita) || quantita < 1) {
         setStatus("⚠️ Compila tutti i campi.", true); return;
     }
+
     const btn = document.getElementById("btn-aggiungi");
     btn.disabled = true; btn.textContent = "Salvataggio…";
-    try {
-        await prodottiRef.push({ nome, quantita, ubicazione, categoria, acquistato: false, timestamp: Date.now() });
-        document.getElementById("nome").value = "";
-        document.getElementById("quantita").value = "";
-        document.getElementById("ubicazione").value = "";
+
+    // Rimuoviamo l'await: Firebase salva subito in locale e sincronizzerà nel cloud non appena torna internet
+    prodottiRef.push({ 
+        nome, 
+        quantita, 
+        ubicazione, 
+        categoria, 
+        acquistato: false, 
+        timestamp: Date.now() 
+    }).then(() => {
+        // Questo scatta non appena il dato è memorizzato (anche offline!)
         setStatus("✅ Prodotto aggiunto!");
         setTimeout(() => setStatus(""), 2500);
-    } catch (err) {
+    }).catch((err) => {
         setStatus("❌ Errore: " + err.message, true);
-    } finally {
-        btn.disabled = false; btn.textContent = "Aggiungi Prodotto";
-    }
+    });
+
+    // Svuotiamo subito i campi senza attendere il server
+    document.getElementById("nome").value = "";
+    document.getElementById("quantita").value = "";
+    document.getElementById("ubicazione").value = "";
+    btn.disabled = false; 
+    btn.textContent = "Aggiungi Prodotto";
 }
 
-async function toggleAcquistato(id, stato) {
-    try { await db.ref("prodotti/" + id).update({ acquistato: !stato }); }
-    catch (err) { setStatus("❌ Errore.", true); }
+// 2. MODIFICA STATO SENZA COMPLICAZIONI OFFLINE
+function toggleAcquistato(id, stato) {
+    // Rimosso l'await per rendere l'interruttore istantaneo
+    db.ref("prodotti/" + id).update({ acquistato: !stato })
+      .catch(err => setStatus("❌ Errore aggiornamento.", true));
+}
+
+// 3. ELIMINAZIONE OTTIMIZZATA
+function eliminaProdotto(id) {
+    if (!confirm("Eliminare?")) return;
+    // Rimosso l'await per far sparire subito il prodotto dalla vista
+    db.ref("prodotti/" + id).remove()
+      .then(() => {
+          setStatus("🗑️ Eliminato.");
+          setTimeout(() => setStatus(""), 2000);
+      })
+      .catch(err => setStatus("❌ Errore eliminazione.", true));
 }
 
 async function eliminaProdotto(id) {
