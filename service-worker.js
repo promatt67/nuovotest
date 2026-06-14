@@ -1,25 +1,48 @@
-const CACHE_NAME = "lista-spesa-v1";
-const urlsToCache = ["./", "./index.html", "./app.js", "./manifest.json"];
+const CACHE_NAME = "lista-spesa-v2"; // Aggiornato a v2 per forzare il reset sui telefoni
+const urlsToCache = [
+    "./", 
+    "./index.html", 
+    "./app.js", 
+    "./manifest.json"
+];
 
+// 1. Installazione: Salva i file di base nella cache del dispositivo
 self.addEventListener("install", event => {
-    event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache)));
+    event.waitUntil(
+        caches.open(CACHE_NAME).then(cache => {
+            return cache.addAll(urlsToCache);
+        })
+    );
     self.skipWaiting();
 });
 
+// 2. Attivazione: Elimina le vecchie cache per non intasare la memoria
 self.addEventListener("activate", event => {
     event.waitUntil(
         caches.keys().then(keys =>
-            Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+            Promise.all(
+                keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+            )
         )
     );
     self.clients.claim();
 });
 
+// 3. Gestione Richieste (FETCH): Il cuore dell'offline
 self.addEventListener("fetch", event => {
-    const url = event.request.url;
-    if (url.includes("firebasedatabase.app") || url.includes("firebase") || url.includes("gstatic.com")) {
-        event.respondWith(fetch(event.request));
+    // Ignora le richieste destinate a Firebase (lasciamo che se ne occupi l'SDK offline di Firebase)
+    if (event.request.url.includes("firebase") || event.request.url.includes("googleapis")) {
         return;
     }
-    event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
+
+    event.respondWith(
+        caches.match(event.request).then(cachedResponse => {
+            // Se il file (HTML, JS, ecc.) è in cache, lo usa subito (velocissimo)
+            if (cachedResponse) {
+                return cachedResponse;
+            }
+            // Altrimenti va a prenderselo su internet
+            return fetch(event.request);
+        })
+    );
 });
