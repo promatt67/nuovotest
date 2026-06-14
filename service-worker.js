@@ -36,9 +36,13 @@ self.addEventListener("fetch", event => {
     }
 
     event.respondWith(
-        caches.match(event.request).then(cachedResponse => {
-            // Se il file (HTML, JS, ecc.) è in cache, lo usa subito (velocissimo)
-            if (cachedResponse) {
+    caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        return fetch(event.request).catch(() => {
+            return caches.match("./index.html");
+        });
+    })
+); {
                 return cachedResponse;
             }
             // Altrimenti va a prenderselo su internet
