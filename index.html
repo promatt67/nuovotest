@@ -169,6 +169,11 @@
     appId:             "1:63200490567:web:5aa6da942a28e5a2a96d62"
   };
   firebase.initializeApp(firebaseConfig);
+
+  // 2. ATTIVA LA PERSISTENZA OFFLINE AUTOMATICA (Aggiungi questa riga qui sotto!)
+  firebase.database().enablePersistence().catch(function(err) {
+      console.log("Impossibile attivare la persistenza offline:", err.code);
+  }); 
 </script>
 <script src="app.js"></script>
 </body>
